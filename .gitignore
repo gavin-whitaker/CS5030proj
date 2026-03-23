@@ -1,0 +1,9 @@
+# Compiled object files
+*.o
+
+# Built binaries
+serial/kmeans_serial
+openmp/kmeans_openmp
+cuda/kmeans_cuda
+mpi/kmeans_mpi
+mpi_cuda/kmeans_mpi_cuda
