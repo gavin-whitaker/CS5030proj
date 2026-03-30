@@ -1,8 +1,8 @@
 #pragma once
 
-#include <array>
+#include "kmeans_common.h"
 
-// TODO: implement Euclidean distance between a point and a centroid.
-double euclidean_distance(const std::array<double, 3> &a,
-                           const std::array<double, 3> &b);
+// Euclidean distance between two feature vectors of length NUM_FEATURES.
+double euclidean_distance(const std::array<double, NUM_FEATURES> &a,
+                          const std::array<double, NUM_FEATURES> &b);
 

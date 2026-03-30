@@ -1,0 +1,23 @@
+# Dataset — too large for GitHub (329 MB)
+data/
+
+# Compiled build artifacts
+build/
+
+# Compiled binaries
+results/serial
+results/openmp
+results/cuda
+results/mpi
+results/mpi_cuda
+
+# K-Means output CSVs (generated at runtime)
+results/*_out.csv
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc

@@ -53,8 +53,11 @@ int main(int argc, char **argv) {
   Config cfg;
   cfg.output = "results/serial_out.csv";
 
+  if (cfg.input.empty()) {
+    print_usage(argv[0]);
+    return 1;
+  }
   parse_args(argc, argv, cfg);
-  std::cout << "TODO: argument parsing done. " << "TODO: implement serial K-Means.\n";
   return run_kmeans_serial(cfg);
 }
 
