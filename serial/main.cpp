@@ -53,11 +53,11 @@ int main(int argc, char **argv) {
   Config cfg;
   cfg.output = "results/serial_out.csv";
 
+  parse_args(argc, argv, cfg);
   if (cfg.input.empty()) {
     print_usage(argv[0]);
     return 1;
   }
-  parse_args(argc, argv, cfg);
   return run_kmeans_serial(cfg);
 }
 

@@ -53,7 +53,10 @@ int main(int argc, char **argv) {
   Config cfg;
   cfg.output = "results/cuda_out.csv";
   parse_args(argc, argv, cfg);
-  std::cout << "TODO: argument parsing done. TODO: implement CUDA K-Means.\n";
+  if (cfg.input.empty()) {
+    print_usage(argv[0]);
+    return 1;
+  }
   return run_kmeans_cuda(cfg);
 }
 

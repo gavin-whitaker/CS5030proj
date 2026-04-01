@@ -5,7 +5,9 @@ BUILD_DIR := build
 
 CXX ?= c++
 CPPFLAGS := -I.
-CXXFLAGS := -std=c++17 -O0 -g -Wall -Wextra $(CPPFLAGS)
+OPT ?= -O2
+CXXFLAGS := -std=c++17 $(OPT) -g -Wall -Wextra $(CPPFLAGS)
+OPENMP_CXXFLAGS := $(CXXFLAGS) -fopenmp
 
 UTILS_CPP := utils/io.cpp utils/distance.cpp utils/validate.cpp
 
@@ -22,10 +24,10 @@ MPI_OBJS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(MPI_SOURCES)))
 NVCC := $(shell command -v nvcc 2>/dev/null)
 ifeq ($(strip $(NVCC)),)
   CUDA_COMPILER := $(CXX)
-  CUDA_CXXFLAGS := -std=c++17 -O0 -g -x c++ $(CPPFLAGS)
+  CUDA_CXXFLAGS := -std=c++17 $(OPT) -g -x c++ $(CPPFLAGS)
 else
   CUDA_COMPILER := $(NVCC)
-  CUDA_CXXFLAGS := -std=c++17 -O0 -g $(CPPFLAGS)
+  CUDA_CXXFLAGS := -std=c++17 $(OPT) -g $(CPPFLAGS)
 endif
 
 CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(CUDA_SOURCES))) \
@@ -50,20 +52,24 @@ $(RESULTS_DIR)/serial: $(SERIAL_OBJS) | $(RESULTS_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/openmp: $(OPENMP_OBJS) | $(RESULTS_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(OPENMP_CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/mpi: $(MPI_OBJS) | $(RESULTS_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/cuda: $(CUDA_OBJS) | $(RESULTS_DIR)
-	$(CUDA_COMPILER) $(CXXFLAGS) -o $@ $^
+	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/mpi_cuda: $(MPI_CUDA_OBJS) | $(RESULTS_DIR)
-	$(CUDA_COMPILER) $(CXXFLAGS) -o $@ $^
+	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^
 
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/openmp/%.o: openmp/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(OPENMP_CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: %.cu
 	@mkdir -p $(dir $@)
