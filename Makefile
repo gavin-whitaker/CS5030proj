@@ -21,6 +21,11 @@ SERIAL_OBJS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(SERIAL_SOURCES
 OPENMP_OBJS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(OPENMP_SOURCES)))
 MPI_OBJS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(MPI_SOURCES)))
 
+MPICXX := $(shell command -v mpicxx 2>/dev/null)
+ifeq ($(strip $(MPICXX)),)
+  MPICXX := $(CXX)
+endif
+
 NVCC := $(shell command -v nvcc 2>/dev/null)
 ifeq ($(strip $(NVCC)),)
   CUDA_COMPILER := $(CXX)
@@ -55,7 +60,7 @@ $(RESULTS_DIR)/openmp: $(OPENMP_OBJS) | $(RESULTS_DIR)
 	$(CXX) $(OPENMP_CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/mpi: $(MPI_OBJS) | $(RESULTS_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(MPICXX) $(CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/cuda: $(CUDA_OBJS) | $(RESULTS_DIR)
 	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^
@@ -66,6 +71,10 @@ $(RESULTS_DIR)/mpi_cuda: $(MPI_CUDA_OBJS) | $(RESULTS_DIR)
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/mpi/%.o: mpi/%.cpp
+	@mkdir -p $(dir $@)
+	$(MPICXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/openmp/%.o: openmp/%.cpp
 	@mkdir -p $(dir $@)

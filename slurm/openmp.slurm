@@ -1,12 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=openmp-kmeans
 #SBATCH --output=openmp-%j.out
+#SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=00:10:00
+#SBATCH --cpus-per-task=8
+#SBATCH --time=00:15:00
+#SBATCH --account=notchpeak-shared-short
+#SBATCH --partition=notchpeak-shared-short
 
 module load gcc
-module load cuda
-module load openmpi
 
 set -e
 
