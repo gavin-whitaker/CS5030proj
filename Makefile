@@ -84,6 +84,50 @@ $(BUILD_DIR)/%.o: %.cu
 	@mkdir -p $(dir $@)
 	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -c $< -o $@
 
-clean:
+# ===== Testing =====
+TEST_DIR := tests
+TEST_UTILS := utils/io.cpp utils/distance.cpp utils/validate.cpp
+UNIT_TESTS := test_distance test_io test_validate test_kmeans_serial
+
+.PHONY: test test_unit test_integration clean_tests
+
+test: test_unit test_integration
+	@echo "All tests passed!"
+
+test_unit: $(addprefix $(BUILD_DIR)/$(TEST_DIR)/,$(UNIT_TESTS))
+	@mkdir -p $(RESULTS_DIR)
+	@echo "Running unit tests..."
+	@for test in $^; do \
+	  echo "  $$test"; \
+	  $$test || exit 1; \
+	done
+	@echo "✓ All unit tests passed"
+
+test_integration: serial openmp cuda
+	@mkdir -p $(RESULTS_DIR)
+	@echo "Running integration tests..."
+	python3 -m pytest $(TEST_DIR)/integration/ -v --tb=short
+
+$(BUILD_DIR)/$(TEST_DIR)/test_distance: $(TEST_DIR)/test_distance.cpp utils/distance.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I. -o $@ $^
+
+$(BUILD_DIR)/$(TEST_DIR)/test_io: $(TEST_DIR)/test_io.cpp $(TEST_UTILS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I. -o $@ $^
+
+$(BUILD_DIR)/$(TEST_DIR)/test_validate: $(TEST_DIR)/test_validate.cpp $(TEST_UTILS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I. -o $@ $^
+
+$(BUILD_DIR)/$(TEST_DIR)/test_kmeans_serial: $(TEST_DIR)/test_kmeans_serial.cpp \
+    serial/kmeans_serial.cpp $(TEST_UTILS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I. -o $@ $^
+
+clean_tests:
+	rm -rf $(BUILD_DIR)/$(TEST_DIR) $(RESULTS_DIR)/*_out.csv
+
+clean: clean_tests
 	rm -rf $(BUILD_DIR) $(RESULTS_DIR)/serial $(RESULTS_DIR)/openmp $(RESULTS_DIR)/cuda $(RESULTS_DIR)/mpi $(RESULTS_DIR)/mpi_cuda
 
