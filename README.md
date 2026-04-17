@@ -2,7 +2,7 @@
 
 **Course:** CS5030 Parallel Programming  
 **Platform:** CHPC Kingspeak (with fallback CPU compilation)  
-**Team:** Curt Reyes (Person 1), [Teammate Name] (Person 2)  
+**Team:** Gavin Whitaker, Curt Reyes, Peter Shen  
 **Date:** April 2026
 
 ---
@@ -11,11 +11,11 @@
 
 This project implements a parallel K-Means clustering algorithm that clusters 1.2M+ Spotify songs by audio features (danceability, energy, acousticness, instrumentalness, valence, tempo). Five implementations are provided:
 
-1. **Serial** — Single-threaded baseline
-2. **OpenMP** — Shared-memory parallelism (8–16 cores)
-3. **CUDA** — GPU acceleration
-4. **MPI** — Distributed-memory CPU (Person 2)
-5. **MPI + CUDA** — Hybrid distributed GPU (Person 2)
+1. **Serial** — Single-threaded baseline (Gavin)
+2. **OpenMP** — Shared-memory parallelism (8–16 cores) (Curt)
+3. **CUDA** — GPU acceleration (Curt)
+4. **MPI** — Distributed-memory CPU (Peter)
+5. **MPI + CUDA** — Hybrid distributed GPU (Peter)
 
 All implementations use **shared utility code** for CSV I/O, distance computation, and validation.
 
@@ -81,8 +81,8 @@ Or individual builds:
 make serial          # Serial baseline
 make openmp          # OpenMP (shared memory)
 make cuda            # CUDA GPU
-make mpi             # MPI distributed CPU (Person 2)
-make mpi_cuda        # MPI + CUDA hybrid (Person 2)
+make mpi             # MPI distributed CPU (Peter)
+make mpi_cuda        # MPI + CUDA hybrid (Peter)
 ```
 
 Binaries are placed in `results/` directory:
@@ -134,12 +134,12 @@ All implementations support:
 ./results/cuda --input data/tracks_features.csv --k 10 --max_iter 50 --block_size 256 --output results/cuda_out.csv
 ```
 
-#### MPI (4 nodes)
+#### MPI (4 nodes) — Peter
 ```bash
 mpirun -n 4 ./results/mpi --input data/tracks_features.csv --k 10 --max_iter 50
 ```
 
-#### MPI + CUDA (4 nodes with GPU per rank)
+#### MPI + CUDA (4 nodes with GPU per rank) — Peter
 ```bash
 mpirun -n 4 ./results/mpi_cuda --input data/tracks_features.csv --k 10 --block_size 256
 ```
@@ -193,8 +193,8 @@ Example SLURM scripts are provided in `slurm/` directory for Kingspeak submissio
 sbatch slurm/serial.sh
 sbatch slurm/openmp.sh
 sbatch slurm/cuda.sh
-sbatch slurm/mpi.sh      # Person 2
-sbatch slurm/mpi_cuda.sh # Person 2
+sbatch slurm/mpi.sh      # Peter
+sbatch slurm/mpi_cuda.sh # Peter
 ```
 
 ---
@@ -304,7 +304,7 @@ __global__ void assign_kernel(const double *pts, const double *cents, int *label
 
 ---
 
-### 4. MPI Implementation (`mpi/kmeans_mpi.cpp`) — **Person 2**
+### 4. MPI Implementation (`mpi/kmeans_mpi.cpp`) — **Peter**
 
 **To implement:**
 - Block decomposition: each rank owns `n/nprocs` points
@@ -314,7 +314,7 @@ __global__ void assign_kernel(const double *pts, const double *cents, int *label
 
 ---
 
-### 5. MPI + CUDA Implementation (`mpi_cuda/kmeans_mpi_cuda.cu`) — **Person 2**
+### 5. MPI + CUDA Implementation (`mpi_cuda/kmeans_mpi_cuda.cu`) — **Peter**
 
 **To implement:**
 - Hybrid: each MPI rank manages one GPU
@@ -438,16 +438,16 @@ Outputs PNG with color-coded points by cluster.
 
 | Task | Owner | Status | Points |
 |------|-------|--------|--------|
-| Serial baseline | Person 1 (Curt) | ✓ | — |
-| OpenMP implementation | Person 1 (Curt) | ✓ | 15 |
-| CUDA GPU implementation | Person 1 (Curt) | ✓ | 15 |
-| Shared utility code | Person 1 (Curt) | ✓ | — |
-| Validation function | Person 1 (Curt) | ✓ | 5 |
-| Code reuse & documentation | Person 1 (Curt) | ✓ | 10 |
-| Build/run instructions | Both | ✓ | 10 |
-| MPI distributed CPU | Person 2 | [ ] | 15 |
-| MPI+CUDA hybrid | Person 2 | [ ] | 15 |
-| Scaling studies (multi-node) | Person 2 | [ ] | 15 |
+| Serial baseline | Gavin | ✓ | — |
+| Shared utility code | Gavin | ✓ | — |
+| Validation function | Gavin | ✓ | 5 |
+| OpenMP implementation | Curt | ✓ | 15 |
+| CUDA GPU implementation | Curt | ✓ | 15 |
+| Code reuse & documentation | Curt | ✓ | 10 |
+| Build/run instructions | All | ✓ | 10 |
+| MPI distributed CPU | Peter | [ ] | 15 |
+| MPI+CUDA hybrid | Peter | [ ] | 15 |
+| Scaling studies (multi-node) | Peter | [ ] | 15 |
 | **Total** | | | **100** |
 
 ---
@@ -469,10 +469,10 @@ CS5030proj/
 ├── cuda/                        # CUDA GPU
 │   ├── main.cu
 │   └── kmeans_cuda.cu
-├── mpi/                         # MPI distributed (Person 2)
+├── mpi/                         # MPI distributed (Peter)
 │   ├── main.cpp
 │   └── kmeans_mpi.cpp
-├── mpi_cuda/                    # MPI+CUDA hybrid (Person 2)
+├── mpi_cuda/                    # MPI+CUDA hybrid (Peter)
 │   ├── main.cu
 │   └── kmeans_mpi_cuda.cu
 │
@@ -517,7 +517,7 @@ CS5030proj/
 2. **Performance metrics documented** (OpenMP scaling, CUDA block size).
 3. **Code reuse enforced** via shared `utils/` — reduces bug surface.
 4. **Kingspeak compatible** — verified build with gcc + CUDA + OpenMPI modules.
-5. **Person 2 to implement MPI/MPI+CUDA stubs and scaling studies.**
+5. **Peter to implement MPI/MPI+CUDA stubs and scaling studies.**
 
 ---
 
