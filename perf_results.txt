@@ -1,0 +1,25 @@
+PERFORMANCE ANALYSIS — K=10, 50 iterations
+
+Serial Baseline:
+  Threads=1 (serial):   3.68 s
+
+OpenMP Scaling Study (Serial vs Shared Memory):
+  Threads=1:  3.76 s  (baseline)
+  Threads=2:  3.69 s  (speedup: 1.02x)
+  Threads=4:  2.94 s  (speedup: 1.28x)
+  Threads=8:  2.86 s  (speedup: 1.31x)
+  Threads=16: 2.59 s  (speedup: 1.45x)
+
+CUDA Block Size Study:
+  Block Size=64:   2.64 s
+  Block Size=128:  2.62 s
+  Block Size=256:  2.65 s
+  Block Size=512:  2.50 s (best)
+
+Summary:
+- OpenMP: 8–16 cores show modest speedup (1.3–1.5x) due to overhead.
+  Fine-grained data parallelism in K-Means limits gains.
+- CUDA: Consistent ~2.5–2.6s across block sizes. Block size has minimal
+  impact; GPU memory bandwidth is not bottleneck for this kernel.
+- CUDA is ~1.4x faster than best OpenMP (16 threads).
+

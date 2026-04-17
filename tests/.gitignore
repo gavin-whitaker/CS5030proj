@@ -1,0 +1,5 @@
+# Temporary test output files
+tmp/
+__pycache__/
+*.pyc
+.pytest_cache/

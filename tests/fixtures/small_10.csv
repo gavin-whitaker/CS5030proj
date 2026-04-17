@@ -1,0 +1,11 @@
+id,name,album,album_id,artists,artist_ids,track_number,disc_number,explicit,danceability,energy,key,loudness,mode,speechiness,acousticness,instrumentalness,liveness,valence,tempo,duration_ms,time_signature,year,release_date
+id_0,track_0,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.5,0.6,5,-5.0,1,0.05,0.1,0.0,0.2,0.5,120.0,240000,4,2020,2020-01-01
+id_1,track_1,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.51,0.62,5,-5.0,1,0.05,0.10500000000000001,0.001,0.2,0.515,120.0,240000,4,2020,2020-01-01
+id_2,track_2,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.52,0.64,5,-5.0,1,0.05,0.11,0.002,0.2,0.53,120.0,240000,4,2020,2020-01-01
+id_3,track_3,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.53,0.6599999999999999,5,-5.0,1,0.05,0.115,0.003,0.2,0.545,120.0,240000,4,2020,2020-01-01
+id_4,track_4,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.54,0.6799999999999999,5,-5.0,1,0.05,0.12000000000000001,0.004,0.2,0.56,120.0,240000,4,2020,2020-01-01
+id_5,track_5,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.55,0.7,5,-5.0,1,0.05,0.125,0.005,0.2,0.575,120.0,240000,4,2020,2020-01-01
+id_6,track_6,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.56,0.72,5,-5.0,1,0.05,0.13,0.006,0.2,0.59,120.0,240000,4,2020,2020-01-01
+id_7,track_7,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.5700000000000001,0.74,5,-5.0,1,0.05,0.135,0.007,0.2,0.605,120.0,240000,4,2020,2020-01-01
+id_8,track_8,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.58,0.76,5,-5.0,1,0.05,0.14,0.008,0.2,0.62,120.0,240000,4,2020,2020-01-01
+id_9,track_9,Test Album,album_id_1,['Artist'],['artist_id_1'],1,1,False,0.59,0.78,5,-5.0,1,0.05,0.14500000000000002,0.009000000000000001,0.2,0.635,120.0,240000,4,2020,2020-01-01
