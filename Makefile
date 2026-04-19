@@ -41,9 +41,22 @@ CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(CUDA_SOURCES))) \
 MPI_CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(MPI_CUDA_SOURCES))) \
                  $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(MPI_CUDA_SOURCES)))
 
-.PHONY: serial openmp cuda mpi mpi_cuda clean all
+.PHONY: serial openmp cuda mpi mpi_cuda clean all run-all perf
 
 all: serial openmp cuda mpi mpi_cuda
+
+run-all: serial openmp cuda
+	@mkdir -p $(RESULTS_DIR)
+	@echo "Running serial..."
+	./$(RESULTS_DIR)/serial --input tests/fixtures/small_100.csv --output $(RESULTS_DIR)/serial_out.csv --k 3 --max_iter 50 --threshold 0.001
+	@echo "Running openmp..."
+	./$(RESULTS_DIR)/openmp --input tests/fixtures/small_100.csv --output $(RESULTS_DIR)/openmp_out.csv --k 3 --max_iter 50 --threshold 0.001 --threads 4
+	@echo "Running cuda..."
+	./$(RESULTS_DIR)/cuda --input tests/fixtures/small_100.csv --output $(RESULTS_DIR)/cuda_out.csv --k 3 --max_iter 50 --threshold 0.001 --block_size 256
+	@echo "✓ Results written to $(RESULTS_DIR)/*.csv"
+
+perf: serial openmp cuda
+	bash run_perf.sh
 
 $(RESULTS_DIR):
 	mkdir -p $(RESULTS_DIR)
