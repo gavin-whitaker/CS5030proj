@@ -1,0 +1,9 @@
+=== K-Means Scaling Study (Full Dataset: 1.2M songs) ===
+Date: Sun Apr 19 01:04:21 PM MDT 2026
+Dataset: data/tracks_features.csv (1,204,025 points, K=10, max_iter=50)
+
+=== EXPERIMENT 1: Serial vs OpenMP (Shared Memory Thread Scaling) ===
+
+=== Serial vs OpenMP Analysis ===
+awk: cmd. line:1: BEGIN {printf "%.2f", Serial (baseline):
+awk: cmd. line:1:                                        ^ syntax error

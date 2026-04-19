@@ -13,7 +13,6 @@ int main(int argc, char **argv) {
     print_usage(argv[0], "mpi");
     return 1;
   }
-  std::cout << "TODO: implement MPI K-Means.\n";
   return run_kmeans_mpi(cfg);
 }
 

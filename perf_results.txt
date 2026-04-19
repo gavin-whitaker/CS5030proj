@@ -1,56 +1,10 @@
-=== K-Means Scaling Study ===
-Date: Sat Apr 18 08:43:25 PM MDT 2026
-Dataset: tests/fixtures/small_100.csv (100 points, K=3, max_iter=50)
+=== K-Means Scaling Study (Full Dataset: 1.2M songs) ===
+Date: Sun Apr 19 01:12:13 PM MDT 2026
+Dataset: data/tracks_features.csv (1,204,025 points, K=10, max_iter=50)
 
-=== EXPERIMENT 1: Serial vs OpenMP (Thread Scaling) ===
+=== EXPERIMENT 1: Serial vs OpenMP ===
 
-Serial (baseline):
-Converged after 13 iterations.
-Elapsed time: 0.00016082 s
-
-OpenMP with 1 threads:
-Converged after 13 iterations.
-Elapsed time: 0.0001609 s
-
-OpenMP with 2 threads:
-Converged after 13 iterations.
-Elapsed time: 0.000180901 s
-
-OpenMP with 4 threads:
-Converged after 13 iterations.
-Elapsed time: 0.00019907 s
-
-OpenMP with 8 threads:
-Converged after 13 iterations.
-Elapsed time: 0.000278411 s
-
-=== EXPERIMENT 2: CUDA Block Size Tuning ===
-
-CUDA with block_size=128:
-Converged after 13 iterations.
-Elapsed time: 0.249139 s
-
-CUDA with block_size=256:
-Converged after 13 iterations.
-Elapsed time: 0.108312 s
-
-CUDA with block_size=512:
-Converged after 13 iterations.
-Elapsed time: 0.104553 s
-
-CUDA with block_size=1024:
-Converged after 13 iterations.
-Elapsed time: 0.109109 s
-
-=== Validation: Output Correctness ===
-
-Comparing Serial vs OpenMP (4 threads):
-✓ Outputs match (numerically identical)
-
-Comparing Serial vs CUDA (block_size=256):
-✓ Outputs match (numerically identical)
-
-=== NOTE: MPI Scaling Study ===
-MPI and MPI+CUDA require 2-4 compute nodes on HPC cluster (CHPC).
-Not run locally. Implement after MPI backend is complete.
-
+Serial: 2.83287 s
+OpenMP (1 threads): 2.33154 s (speedup=1.22, eff=122%)
+OpenMP (2 threads): 1.86661 s (speedup=1.52, eff=76%)
+OpenMP (4 threads): 1.61818 s (speedup=1.75, eff=44%)
