@@ -13,6 +13,7 @@ results/mpi_cuda
 
 # K-Means output CSVs (generated at runtime)
 results/*_out.csv
+results/spotify_viz.csv
 
 # macOS metadata
 .DS_Store
@@ -24,3 +25,4 @@ __pycache__/
 
 .cache/
 compile_commands.json
+
