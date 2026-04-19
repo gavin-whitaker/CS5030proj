@@ -1,25 +1,56 @@
-PERFORMANCE ANALYSIS — K=10, 50 iterations
+=== K-Means Scaling Study ===
+Date: Sat Apr 18 08:43:25 PM MDT 2026
+Dataset: tests/fixtures/small_100.csv (100 points, K=3, max_iter=50)
 
-Serial Baseline:
-  Threads=1 (serial):   3.68 s
+=== EXPERIMENT 1: Serial vs OpenMP (Thread Scaling) ===
 
-OpenMP Scaling Study (Serial vs Shared Memory):
-  Threads=1:  3.76 s  (baseline)
-  Threads=2:  3.69 s  (speedup: 1.02x)
-  Threads=4:  2.94 s  (speedup: 1.28x)
-  Threads=8:  2.86 s  (speedup: 1.31x)
-  Threads=16: 2.59 s  (speedup: 1.45x)
+Serial (baseline):
+Converged after 13 iterations.
+Elapsed time: 0.00016082 s
 
-CUDA Block Size Study:
-  Block Size=64:   2.64 s
-  Block Size=128:  2.62 s
-  Block Size=256:  2.65 s
-  Block Size=512:  2.50 s (best)
+OpenMP with 1 threads:
+Converged after 13 iterations.
+Elapsed time: 0.0001609 s
 
-Summary:
-- OpenMP: 8–16 cores show modest speedup (1.3–1.5x) due to overhead.
-  Fine-grained data parallelism in K-Means limits gains.
-- CUDA: Consistent ~2.5–2.6s across block sizes. Block size has minimal
-  impact; GPU memory bandwidth is not bottleneck for this kernel.
-- CUDA is ~1.4x faster than best OpenMP (16 threads).
+OpenMP with 2 threads:
+Converged after 13 iterations.
+Elapsed time: 0.000180901 s
+
+OpenMP with 4 threads:
+Converged after 13 iterations.
+Elapsed time: 0.00019907 s
+
+OpenMP with 8 threads:
+Converged after 13 iterations.
+Elapsed time: 0.000278411 s
+
+=== EXPERIMENT 2: CUDA Block Size Tuning ===
+
+CUDA with block_size=128:
+Converged after 13 iterations.
+Elapsed time: 0.249139 s
+
+CUDA with block_size=256:
+Converged after 13 iterations.
+Elapsed time: 0.108312 s
+
+CUDA with block_size=512:
+Converged after 13 iterations.
+Elapsed time: 0.104553 s
+
+CUDA with block_size=1024:
+Converged after 13 iterations.
+Elapsed time: 0.109109 s
+
+=== Validation: Output Correctness ===
+
+Comparing Serial vs OpenMP (4 threads):
+✓ Outputs match (numerically identical)
+
+Comparing Serial vs CUDA (block_size=256):
+✓ Outputs match (numerically identical)
+
+=== NOTE: MPI Scaling Study ===
+MPI and MPI+CUDA require 2-4 compute nodes on HPC cluster (CHPC).
+Not run locally. Implement after MPI backend is complete.
 

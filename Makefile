@@ -9,7 +9,8 @@ OPT ?= -O2
 CXXFLAGS := -std=c++17 $(OPT) -g -Wall -Wextra $(CPPFLAGS)
 OPENMP_CXXFLAGS := $(CXXFLAGS) -fopenmp
 
-UTILS_CPP := utils/io.cpp utils/distance.cpp utils/validate.cpp
+UTILS_CPP := utils/io.cpp utils/distance.cpp utils/validate.cpp \
+             utils/kmeans_utils.cpp utils/args.cpp
 
 SERIAL_SOURCES := serial/main.cpp serial/kmeans_serial.cpp $(UTILS_CPP)
 OPENMP_SOURCES := openmp/main.cpp openmp/kmeans_openmp.cpp $(UTILS_CPP)
@@ -40,9 +41,22 @@ CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(CUDA_SOURCES))) \
 MPI_CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(MPI_CUDA_SOURCES))) \
                  $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(MPI_CUDA_SOURCES)))
 
-.PHONY: serial openmp cuda mpi mpi_cuda clean all
+.PHONY: serial openmp cuda mpi mpi_cuda clean all run-all perf
 
 all: serial openmp cuda mpi mpi_cuda
+
+run-all: serial openmp cuda
+	@mkdir -p $(RESULTS_DIR)
+	@echo "Running serial..."
+	./$(RESULTS_DIR)/serial --input tests/fixtures/small_100.csv --output $(RESULTS_DIR)/serial_out.csv --k 3 --max_iter 50 --threshold 0.001
+	@echo "Running openmp..."
+	./$(RESULTS_DIR)/openmp --input tests/fixtures/small_100.csv --output $(RESULTS_DIR)/openmp_out.csv --k 3 --max_iter 50 --threshold 0.001 --threads 4
+	@echo "Running cuda..."
+	./$(RESULTS_DIR)/cuda --input tests/fixtures/small_100.csv --output $(RESULTS_DIR)/cuda_out.csv --k 3 --max_iter 50 --threshold 0.001 --block_size 256
+	@echo "✓ Results written to $(RESULTS_DIR)/*.csv"
+
+perf: serial openmp cuda
+	bash run_perf.sh
 
 $(RESULTS_DIR):
 	mkdir -p $(RESULTS_DIR)
@@ -121,7 +135,17 @@ $(BUILD_DIR)/$(TEST_DIR)/test_validate: $(TEST_DIR)/test_validate.cpp $(TEST_UTI
 	$(CXX) $(CXXFLAGS) -I. -o $@ $^
 
 $(BUILD_DIR)/$(TEST_DIR)/test_kmeans_serial: $(TEST_DIR)/test_kmeans_serial.cpp \
+    serial/kmeans_serial.cpp utils/kmeans_utils.cpp $(TEST_UTILS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I. -o $@ $^
+
+$(BUILD_DIR)/$(TEST_DIR)/test_kmeans_utils: $(TEST_DIR)/test_kmeans_utils.cpp \
     serial/kmeans_serial.cpp $(TEST_UTILS)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I. -o $@ $^
+
+$(BUILD_DIR)/$(TEST_DIR)/test_args: $(TEST_DIR)/test_args.cpp \
+    serial/main.cpp serial/kmeans_serial.cpp $(TEST_UTILS)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -I. -o $@ $^
 
