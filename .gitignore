@@ -21,3 +21,6 @@ results/*_out.csv
 # Python cache
 __pycache__/
 *.pyc
+
+.cache/
+compile_commands.json
