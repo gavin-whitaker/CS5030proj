@@ -1,153 +1,169 @@
 #include "kmeans_cuda.cuh"
 
-#include "utils/distance.h"
 #include "utils/io.h"
+#include "utils/kmeans_common.h"
 #include "utils/kmeans_utils.h"
 
-#include <algorithm>
 #include <cfloat>
 #include <chrono>
-#include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <cuda_runtime.h>
 #include <iostream>
-#include <limits>
-#include <numeric>
 #include <random>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// CUDA kernel: assign each point to nearest centroid
-// ---------------------------------------------------------------------------
-__global__ void assign_kernel(const double *pts, const double *cents, int *labels,
-                               int n, int k) {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;
-  if (i >= n)
-    return;
+// CUDA, assign each point to nearest centroid
+__global__ void assign_kernel(const double *pts, const double *cents,
+							  int *labels, int n, int k) {
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= n)
+		return;
 
-  double best_dist = DBL_MAX;
-  int best_c = 0;
+	double best_dist = DBL_MAX;
+	int best_c = 0;
 
-  for (int c = 0; c < k; ++c) {
-    double d_sq = 0.0;
-    for (int f = 0; f < NUM_FEATURES; ++f) {
-      double diff = pts[i * NUM_FEATURES + f] - cents[c * NUM_FEATURES + f];
-      d_sq += diff * diff;
-    }
-    if (d_sq < best_dist) {
-      best_dist = d_sq;
-      best_c = c;
-    }
-  }
+	for (int c = 0; c < k; ++c) {
+		double d_sq = 0.0;
+		for (int f = 0; f < NUM_FEATURES; ++f) {
+			double diff =
+				pts[i * NUM_FEATURES + f] - cents[c * NUM_FEATURES + f];
+			d_sq += diff * diff;
+		}
+		if (d_sq < best_dist) {
+			best_dist = d_sq;
+			best_c = c;
+		}
+	}
 
-  labels[i] = best_c;
+	labels[i] = best_c;
 }
-
 
 // ---------------------------------------------------------------------------
 // Main CUDA K-Means
 // ---------------------------------------------------------------------------
 int run_kmeans_cuda(const Config &cfg) {
-  auto wall_start = std::chrono::steady_clock::now();
+	auto wall_start = std::chrono::steady_clock::now();
 
-  // Load data
-  std::vector<Point> points = load_data(cfg.input);
-  if (points.empty()) {
-    std::cerr << "Error: no data loaded. Aborting.\n";
-    return 1;
-  }
+	// Load data via C++ utility
+	std::vector<Point> points_vec = load_data(cfg.input);
+	if (points_vec.empty()) {
+		std::cerr << "Error: no data loaded. Aborting.\n";
+		return 1;
+	}
 
-  size_t n = points.size();
-  int k = cfg.k;
-  int block_size = cfg.block_size;
+	int n = points_vec.size();
+	int k = cfg.k;
+	int block_size = cfg.block_size;
 
-  // Flatten points to device format: double[n * NUM_FEATURES]
-  std::vector<double> pts_flat(n * NUM_FEATURES);
-  for (size_t i = 0; i < n; ++i) {
-    for (int f = 0; f < NUM_FEATURES; ++f) {
-      pts_flat[i * NUM_FEATURES + f] = points[i].features[f];
-    }
-  }
+	// Flatten points to device format: double[n * NUM_FEATURES]
+	double *pts_flat = (double *)malloc(n * NUM_FEATURES * sizeof(double));
+	for (int i = 0; i < n; ++i) {
+		for (int f = 0; f < NUM_FEATURES; ++f) {
+			pts_flat[i * NUM_FEATURES + f] = points_vec[i].features[f];
+		}
+	}
 
-  // Allocate device memory
-  double *d_pts = nullptr;
-  double *d_cents = nullptr;
-  int *d_labels = nullptr;
+	// Allocate device memory
+	double *d_pts = nullptr;
+	double *d_cents = nullptr;
+	int *d_labels = nullptr;
 
-  cudaMalloc(&d_pts, n * NUM_FEATURES * sizeof(double));
-  cudaMalloc(&d_cents, k * NUM_FEATURES * sizeof(double));
-  cudaMalloc(&d_labels, n * sizeof(int));
+	cudaMalloc(&d_pts, n * NUM_FEATURES * sizeof(double));
+	cudaMalloc(&d_cents, k * NUM_FEATURES * sizeof(double));
+	cudaMalloc(&d_labels, n * sizeof(int));
 
-  // Copy points to device (once)
-  cudaMemcpy(d_pts, pts_flat.data(), n * NUM_FEATURES * sizeof(double),
-             cudaMemcpyHostToDevice);
+	// Copy points to device (once)
+	cudaMemcpy(d_pts, pts_flat, n * NUM_FEATURES * sizeof(double),
+			   cudaMemcpyHostToDevice);
 
-  // Initialize centroids (K-Means++)
-  std::mt19937 rng(42);
-  std::vector<Centroid> centroids = init_centroids_pp(points, k, rng);
+	// Initialize centroids via C++ utility
+	std::mt19937 rng(42);
+	std::vector<Centroid> centroids_vec = init_centroids_pp(points_vec, k, rng);
 
-  std::cout << "K=" << k
-            << "  max_iter=" << cfg.max_iter
-            << "  threshold=" << cfg.threshold
-            << "  points=" << n
-            << "  block_size=" << block_size << "\n";
+	double *centroids = (double *)malloc(k * NUM_FEATURES * sizeof(double));
+	for (int c = 0; c < k; ++c) {
+		for (int f = 0; f < NUM_FEATURES; ++f) {
+			centroids[c * NUM_FEATURES + f] = centroids_vec[c].features[f];
+		}
+	}
 
-  // Main K-Means loop
-  std::vector<int> labels(n, 0);
-  int iter = 0;
-  bool converged = false;
+	std::cout << "K=" << k << "  max_iter=" << cfg.max_iter
+			  << "  threshold=" << cfg.threshold << "  points=" << n
+			  << "  block_size=" << block_size << "\n";
 
-  for (; iter < cfg.max_iter; ++iter) {
-    // Flatten centroids
-    std::vector<double> cents_flat(k * NUM_FEATURES);
-    for (int c = 0; c < k; ++c) {
-      for (int f = 0; f < NUM_FEATURES; ++f) {
-        cents_flat[c * NUM_FEATURES + f] = centroids[c].features[f];
-      }
-    }
+	// Allocate working memory
+	int *labels = (int *)malloc(n * sizeof(int));
+	double *new_centroids = (double *)malloc(k * NUM_FEATURES * sizeof(double));
 
-    // Copy centroids to device
-    cudaMemcpy(d_cents, cents_flat.data(), k * NUM_FEATURES * sizeof(double),
-               cudaMemcpyHostToDevice);
+	memset(labels, 0, n * sizeof(int));
 
-    // Launch kernel
-    int grid_size = (n + block_size - 1) / block_size;
-    assign_kernel<<<grid_size, block_size>>>(d_pts, d_cents, d_labels, n, k);
-    cudaDeviceSynchronize();
+	int iter = 0;
+	bool converged = false;
 
-    // Copy labels back
-    cudaMemcpy(labels.data(), d_labels, n * sizeof(int), cudaMemcpyDeviceToHost);
+	for (; iter < cfg.max_iter; ++iter) {
+		// Copy centroids to device
+		cudaMemcpy(d_cents, centroids, k * NUM_FEATURES * sizeof(double),
+				   cudaMemcpyHostToDevice);
 
-    // Update centroids on CPU
-    std::vector<Centroid> new_centroids = update_centroids_cpu(points, labels, k);
+		// Launch kernel
+		int grid_size = (n + block_size - 1) / block_size;
+		assign_kernel<<<grid_size, block_size>>>(d_pts, d_cents, d_labels, n,
+												 k);
+		cudaDeviceSynchronize();
 
-    converged = check_convergence(centroids, new_centroids, cfg.threshold);
-    centroids = std::move(new_centroids);
+		// Copy labels back
+		cudaMemcpy(labels, d_labels, n * sizeof(int), cudaMemcpyDeviceToHost);
 
-    if ((iter + 1) % 10 == 0) {
-      std::cout << "  iter " << (iter + 1) << " done\n";
-    }
+		// Update centroids on CPU via C++ utility
+		std::vector<Centroid> old_c(k), new_c(k);
+		for (int c = 0; c < k; ++c) {
+			for (int f = 0; f < NUM_FEATURES; ++f) {
+				old_c[c].features[f] = centroids[c * NUM_FEATURES + f];
+			}
+		}
+		std::vector<Centroid> new_c_vec = update_centroids_cpu(
+			points_vec, std::vector<int>(labels, labels + n), k);
+		for (int c = 0; c < k; ++c) {
+			for (int f = 0; f < NUM_FEATURES; ++f) {
+				new_centroids[c * NUM_FEATURES + f] = new_c_vec[c].features[f];
+				new_c[c].features[f] = new_c_vec[c].features[f];
+			}
+		}
 
-    if (converged) {
-      ++iter;
-      break;
-    }
-  }
+		converged = check_convergence(old_c, new_c, cfg.threshold);
+		memcpy(centroids, new_centroids, k * NUM_FEATURES * sizeof(double));
 
-  auto wall_end = std::chrono::steady_clock::now();
-  double elapsed =
-      std::chrono::duration<double>(wall_end - wall_start).count();
+		if ((iter + 1) % 10 == 0) {
+			std::cout << "  iter " << (iter + 1) << " done\n";
+		}
 
-  std::cout << (converged ? "Converged" : "Reached max_iter")
-            << " after " << iter << " iterations.\n";
-  std::cout << "Elapsed time: " << elapsed << " s\n";
+		if (converged) {
+			++iter;
+			break;
+		}
+	}
 
-  // Cleanup
-  cudaFree(d_pts);
-  cudaFree(d_cents);
-  cudaFree(d_labels);
+	auto wall_end = std::chrono::steady_clock::now();
+	double elapsed =
+		std::chrono::duration<double>(wall_end - wall_start).count();
 
-  // Write results
-  write_output_csv(cfg.output, labels, points);
-  return 0;
+	std::cout << (converged ? "Converged" : "Reached max_iter") << " after "
+			  << iter << " iterations.\n";
+	std::cout << "Elapsed time: " << elapsed << " s\n";
+
+	// Write results via C++ utility
+	write_output_csv(cfg.output, std::vector<int>(labels, labels + n),
+					 points_vec);
+
+	// Cleanup
+	free(pts_flat);
+	free(centroids);
+	free(labels);
+	free(new_centroids);
+	cudaFree(d_pts);
+	cudaFree(d_cents);
+	cudaFree(d_labels);
+
+	return 0;
 }
-

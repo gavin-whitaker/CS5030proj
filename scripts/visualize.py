@@ -15,8 +15,81 @@ FEATURE_NAMES = [
     "instrumentalness", "valence", "tempo"
 ]
 
+def validate_feature_count(features):
+    if len(features) != 3:
+        print("Error: must specify exactly 3 features.", file=sys.stderr)
+        sys.exit(1)
 
-def main() -> None:
+def get_feature_indices(features):
+    indices = []
+    for f in features:
+        try:
+            indices.append(FEATURE_NAMES.index(f))
+        except ValueError:
+            print(f"Error: invalid feature name. Choose from: {', '.join(FEATURE_NAMES)}", file=sys.stderr)
+            sys.exit(1)
+    return indices
+
+def read_csv(filepath):
+    try:
+        with open(filepath) as f:
+            reader = csv.reader(f)
+            next(reader)
+            rows = list(reader)
+        return rows
+    except Exception as e:
+        print(f"Error reading {filepath}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def subsample_rows(rows, sample_size):
+    if sample_size is not None and sample_size < len(rows):
+        return random.sample(rows, sample_size)
+    return rows
+
+def extract_point_data(rows, feat_indices):
+    xs = []
+    ys = []
+    zs = []
+    colors = []
+
+    for row in rows:
+        try:
+            cluster_id = int(row[1])
+            feats = [float(row[2 + fi]) for fi in feat_indices]
+            xs.append(feats[0])
+            ys.append(feats[1])
+            zs.append(feats[2])
+            colors.append(cluster_id)
+        except (IndexError, ValueError):
+            print(f"Warning: skipping malformed row: {row}", file=sys.stderr)
+            continue
+
+    if not xs:
+        print("Error: no valid data points to plot.", file=sys.stderr)
+        sys.exit(1)
+
+    return xs, ys, zs, colors
+
+def create_plot(xs, ys, zs, colors, feature_names, k):
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    sc = ax.scatter(xs, ys, zs, c=colors, cmap='tab20', s=30, alpha=0.7)
+    ax.set_xlabel(feature_names[0])
+    ax.set_ylabel(feature_names[1])
+    ax.set_zlabel(feature_names[2])
+    ax.set_title(f"K-Means k={k}: {', '.join(feature_names)}")
+    plt.colorbar(sc, ax=ax, label='cluster', shrink=0.5)
+    return fig
+
+def save_plot(fig, output):
+    try:
+        fig.savefig(output, dpi=150, bbox_inches='tight')
+        print(f"Saved plot to {output}")
+    except Exception as e:
+        print(f"Error saving plot: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def main():
     parser = argparse.ArgumentParser(description="Visualize K-Means clustering results.")
     parser.add_argument("--input", required=True, help="Input output CSV from a K-Means implementation.")
     parser.add_argument("--k", type=int, required=True, help="Number of clusters.")
@@ -30,69 +103,13 @@ def main() -> None:
     parser.add_argument("--sample", type=int, default=None, help="Subsample to N random points (default: all).")
     args = parser.parse_args()
 
-    # Validate exactly 3 features
-    if len(args.features) != 3:
-        print("Error: must specify exactly 3 features.", file=sys.stderr)
-        sys.exit(1)
-
-    # Map feature names to column indices
-    try:
-        feat_indices = [FEATURE_NAMES.index(f) for f in args.features]
-    except ValueError as e:
-        print(f"Error: invalid feature name. Choose from: {', '.join(FEATURE_NAMES)}", file=sys.stderr)
-        sys.exit(1)
-
-    # Read CSV: columns are [song_id, cluster_id, f0, f1, f2, f3, f4, f5]
-    xs, ys, zs, colors = [], [], [], []
-
-    try:
-        with open(args.input) as f:
-            reader = csv.reader(f)
-            next(reader)  # skip header
-            rows = list(reader)
-    except Exception as e:
-        print(f"Error reading {args.input}: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # Subsample if requested
-    if args.sample is not None and args.sample < len(rows):
-        rows = random.sample(rows, args.sample)
-
-    # Extract data
-    for row in rows:
-        try:
-            cluster_id = int(row[1])
-            # Feature columns start at index 2
-            feats = [float(row[2 + fi]) for fi in feat_indices]
-            xs.append(feats[0])
-            ys.append(feats[1])
-            zs.append(feats[2])
-            colors.append(cluster_id)
-        except (IndexError, ValueError) as e:
-            print(f"Warning: skipping malformed row: {row}", file=sys.stderr)
-            continue
-
-    if not xs:
-        print("Error: no valid data points to plot.", file=sys.stderr)
-        sys.exit(1)
-
-    # Create 3D scatter plot
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(xs, ys, zs, c=colors, cmap='tab20', s=0.5, alpha=0.4)
-    ax.set_xlabel(args.features[0])
-    ax.set_ylabel(args.features[1])
-    ax.set_zlabel(args.features[2])
-    ax.set_title(f"K-Means k={args.k}: {', '.join(args.features)}")
-    plt.colorbar(sc, ax=ax, label='cluster', shrink=0.5)
-
-    try:
-        plt.savefig(args.output, dpi=150, bbox_inches='tight')
-        print(f"Saved plot to {args.output}")
-    except Exception as e:
-        print(f"Error saving plot: {e}", file=sys.stderr)
-        sys.exit(1)
-
+    validate_feature_count(args.features)
+    feat_indices = get_feature_indices(args.features)
+    rows = read_csv(args.input)
+    rows = subsample_rows(rows, args.sample)
+    xs, ys, zs, colors = extract_point_data(rows, feat_indices)
+    fig = create_plot(xs, ys, zs, colors, args.features, args.k)
+    save_plot(fig, args.output)
 
 if __name__ == "__main__":
     main()

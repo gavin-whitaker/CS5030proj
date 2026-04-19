@@ -41,7 +41,7 @@ CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(CUDA_SOURCES))) \
 MPI_CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(MPI_CUDA_SOURCES))) \
                  $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(MPI_CUDA_SOURCES)))
 
-.PHONY: serial openmp cuda mpi mpi_cuda clean all run-all perf
+.PHONY: serial openmp cuda mpi mpi_cuda clean all run-all perf visualize
 
 all: serial openmp cuda mpi mpi_cuda
 
@@ -154,4 +154,21 @@ clean_tests:
 
 clean: clean_tests
 	rm -rf $(BUILD_DIR) $(RESULTS_DIR)/serial $(RESULTS_DIR)/openmp $(RESULTS_DIR)/cuda $(RESULTS_DIR)/mpi $(RESULTS_DIR)/mpi_cuda
+
+# ===== Visualization =====
+VENV_DIR := .venv
+
+$(VENV_DIR):
+	python3 -m venv $(VENV_DIR)
+	$(VENV_DIR)/bin/pip install -q -r requirements.txt
+
+visualize: serial $(VENV_DIR)
+	@mkdir -p $(RESULTS_DIR)
+	./$(RESULTS_DIR)/serial --input data/tracks_features.csv --output $(RESULTS_DIR)/spotify_viz.csv --k 10 --max_iter 50 --threshold 0.001
+	$(VENV_DIR)/bin/python3 scripts/visualize.py \
+	  --input $(RESULTS_DIR)/spotify_viz.csv \
+	  --k 10 \
+	  --features valence danceability energy \
+	  --output $(RESULTS_DIR)/cluster_viz.png
+	@echo "✓ Visualization saved to $(RESULTS_DIR)/cluster_viz.png"
 

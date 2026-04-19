@@ -1,163 +1,192 @@
 #include "kmeans_openmp.h"
 
-#include "utils/distance.h"
 #include "utils/io.h"
+#include "utils/kmeans_common.h"
 #include "utils/kmeans_utils.h"
 
-#include <algorithm>
 #include <array>
+#include <cfloat>
 #include <chrono>
-#include <cmath>
-#include <iostream>
-#include <limits>
-#include <numeric>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <omp.h>
 #include <random>
 #include <vector>
 
-// ---------------------------------------------------------------------------
-// Parallel assignment: each point assigned to nearest centroid
-// ---------------------------------------------------------------------------
-static std::vector<int> assign_clusters(const std::vector<Point> &points,
-                                        const std::vector<Centroid> &centroids) {
-  std::vector<int> labels(points.size());
-  int k = static_cast<int>(centroids.size());
-
+// Parallel, each point assigned to nearest centroid
+static void assign_clusters(const Point *points, int n, const double *centroids,
+							int k, int *labels) {
 #pragma omp parallel for schedule(static)
-  for (size_t i = 0; i < points.size(); ++i) {
-    double best_dist = std::numeric_limits<double>::max();
-    int best_c = 0;
-    for (int c = 0; c < k; ++c) {
-      double d = euclidean_distance(points[i].features, centroids[c].features);
-      if (d < best_dist) {
-        best_dist = d;
-        best_c = c;
-      }
-    }
-    labels[i] = best_c;
-  }
-  return labels;
+	for (int i = 0; i < n; ++i) {
+		double best_dist = DBL_MAX;
+		int best_c = 0;
+
+		for (int c = 0; c < k; ++c) {
+			double d_sq = 0.0;
+			for (int f = 0; f < NUM_FEATURES; ++f) {
+				double diff =
+					points[i].features[f] - centroids[c * NUM_FEATURES + f];
+				d_sq += diff * diff;
+			}
+			if (d_sq < best_dist) {
+				best_dist = d_sq;
+				best_c = c;
+			}
+		}
+		labels[i] = best_c;
+	}
 }
 
-// Intentionally differs from utils/kmeans_utils.cpp update_centroids_cpu.
-// Uses thread-private accumulators to avoid false sharing.
-static std::vector<Centroid> update_centroids(const std::vector<Point> &points,
-                                              const std::vector<int> &labels,
-                                              int k) {
-  int nthreads = omp_get_max_threads();
+// Parallel centroid update with thread-private accumulators
+static void update_centroids(const Point *points, int n, const int *labels,
+							 int k, double *new_centroids, int *counts) {
+	int nthreads = omp_get_max_threads();
 
-  // thread-local sums: [thread][centroid][feature]
-  std::vector<std::vector<std::array<double, NUM_FEATURES>>> sums(
-      nthreads, std::vector<std::array<double, NUM_FEATURES>>(k));
-  std::vector<std::vector<int>> counts(nthreads, std::vector<int>(k, 0));
+	// [thread][centroid][feature]
+	double **sums = (double **)malloc(nthreads * sizeof(double *));
+	int **thread_counts = (int **)malloc(nthreads * sizeof(int *));
 
-  // Initialize thread-local arrays
-  for (int t = 0; t < nthreads; ++t) {
-    for (int c = 0; c < k; ++c) {
-      for (int f = 0; f < NUM_FEATURES; ++f) {
-        sums[t][c][f] = 0.0;
-      }
-    }
-  }
+	for (int t = 0; t < nthreads; ++t) {
+		sums[t] = (double *)calloc(k * NUM_FEATURES, sizeof(double));
+		thread_counts[t] = (int *)calloc(k, sizeof(int));
+	}
 
-  // Parallel accumulation
+// Parallel accumulation
 #pragma omp parallel
-  {
-    int tid = omp_get_thread_num();
+	{
+		int tid = omp_get_thread_num();
 #pragma omp for schedule(static)
-    for (size_t i = 0; i < points.size(); ++i) {
-      int c = labels[i];
-      for (int f = 0; f < NUM_FEATURES; ++f) {
-        sums[tid][c][f] += points[i].features[f];
-      }
-      ++counts[tid][c];
-    }
-  }
+		for (int i = 0; i < n; ++i) {
+			int c = labels[i];
+			for (int f = 0; f < NUM_FEATURES; ++f) {
+				sums[tid][c * NUM_FEATURES + f] += points[i].features[f];
+			}
+			thread_counts[tid][c]++;
+		}
+	}
 
-  // Serial merge
-  std::vector<Centroid> centroids(k);
-  std::vector<int> total_counts(k, 0);
+	// Serial merge
+	memset(new_centroids, 0, k * NUM_FEATURES * sizeof(double));
+	memset(counts, 0, k * sizeof(int));
 
-  for (int t = 0; t < nthreads; ++t) {
-    for (int c = 0; c < k; ++c) {
-      total_counts[c] += counts[t][c];
-      for (int f = 0; f < NUM_FEATURES; ++f) {
-        centroids[c].features[f] += sums[t][c][f];
-      }
-    }
-  }
+	for (int t = 0; t < nthreads; ++t) {
+		for (int c = 0; c < k; ++c) {
+			counts[c] += thread_counts[t][c];
+			for (int f = 0; f < NUM_FEATURES; ++f) {
+				new_centroids[c * NUM_FEATURES + f] +=
+					sums[t][c * NUM_FEATURES + f];
+			}
+		}
+	}
 
-  for (int c = 0; c < k; ++c) {
-    if (total_counts[c] > 0) {
-      for (int f = 0; f < NUM_FEATURES; ++f) {
-        centroids[c].features[f] /= total_counts[c];
-      }
-    }
-  }
+	for (int c = 0; c < k; ++c) {
+		if (counts[c] > 0) {
+			for (int f = 0; f < NUM_FEATURES; ++f) {
+				new_centroids[c * NUM_FEATURES + f] /= counts[c];
+			}
+		}
+	}
 
-  return centroids;
+	// Cleanup
+	for (int t = 0; t < nthreads; ++t) {
+		free(sums[t]);
+		free(thread_counts[t]);
+	}
+	free(sums);
+	free(thread_counts);
 }
 
-
-// ---------------------------------------------------------------------------
 // Main OpenMP K-Means
-// ---------------------------------------------------------------------------
 int run_kmeans_openmp(const Config &cfg) {
-  auto wall_start = std::chrono::steady_clock::now();
+	auto wall_start = std::chrono::steady_clock::now();
 
-  // Set thread count
-  omp_set_num_threads(cfg.threads);
+	omp_set_num_threads(cfg.threads);
 
-  // Load data
-  std::vector<Point> points = load_data(cfg.input);
-  if (points.empty()) {
-    std::cerr << "Error: no data loaded. Aborting.\n";
-    return 1;
-  }
+	std::vector<Point> points_vec = load_data(cfg.input);
+	if (points_vec.empty()) {
+		fprintf(stderr, "Error: no data loaded. Aborting.\n");
+		return 1;
+	}
 
-  // Initialize centroids (K-Means++)
-  std::mt19937 rng(42);
-  std::vector<Centroid> centroids = init_centroids_pp(points, cfg.k, rng);
+	int n = points_vec.size();
+	int k = cfg.k;
 
-  std::cout << "K=" << cfg.k
-            << "  max_iter=" << cfg.max_iter
-            << "  threshold=" << cfg.threshold
-            << "  points=" << points.size()
-            << "  threads=" << cfg.threads << "\n";
+	Point *points = (Point *)malloc(n * sizeof(Point));
+	for (int i = 0; i < n; ++i) {
+		points[i] = points_vec[i];
+	}
 
-  // Main K-Means loop
-  std::vector<int> labels(points.size(), 0);
-  int iter = 0;
-  bool converged = false;
+	std::mt19937 rng(42);
+	std::vector<Centroid> centroids_vec = init_centroids_pp(points_vec, k, rng);
 
-  for (; iter < cfg.max_iter; ++iter) {
-    std::vector<int> new_labels = assign_clusters(points, centroids);
-    std::vector<Centroid> new_centroids = update_centroids(points, new_labels, cfg.k);
+	double *centroids = (double *)malloc(k * NUM_FEATURES * sizeof(double));
+	for (int c = 0; c < k; ++c) {
+		for (int f = 0; f < NUM_FEATURES; ++f) {
+			centroids[c * NUM_FEATURES + f] = centroids_vec[c].features[f];
+		}
+	}
 
-    converged = check_convergence(centroids, new_centroids, cfg.threshold);
-    labels = std::move(new_labels);
-    centroids = std::move(new_centroids);
+	printf("K=%d  max_iter=%d  threshold=%g  points=%d  threads=%d\n", k,
+		   cfg.max_iter, cfg.threshold, n, cfg.threads);
 
-    if ((iter + 1) % 10 == 0) {
-      std::cout << "  iter " << (iter + 1) << " done\n";
-    }
+	int *labels = (int *)malloc(n * sizeof(int));
+	int *new_labels = (int *)malloc(n * sizeof(int));
+	double *new_centroids = (double *)malloc(k * NUM_FEATURES * sizeof(double));
+	int *counts = (int *)malloc(k * sizeof(int));
 
-    if (converged) {
-      ++iter;
-      break;
-    }
-  }
+	memset(labels, 0, n * sizeof(int));
 
-  auto wall_end = std::chrono::steady_clock::now();
-  double elapsed =
-      std::chrono::duration<double>(wall_end - wall_start).count();
+	int iter = 0;
+	bool converged = false;
 
-  std::cout << (converged ? "Converged" : "Reached max_iter")
-            << " after " << iter << " iterations.\n";
-  std::cout << "Elapsed time: " << elapsed << " s\n";
+	for (; iter < cfg.max_iter; ++iter) {
+		// Assign points to centroids
+		assign_clusters(points, n, centroids, k, new_labels);
+		memcpy(labels, new_labels, n * sizeof(int));
 
-  // Write results
-  write_output_csv(cfg.output, labels, points);
-  return 0;
+		// Update centroids
+		update_centroids(points, n, labels, k, new_centroids, counts);
+
+		// Check convergence
+		std::vector<Centroid> old_c(k), new_c(k);
+		for (int c = 0; c < k; ++c) {
+			for (int f = 0; f < NUM_FEATURES; ++f) {
+				old_c[c].features[f] = centroids[c * NUM_FEATURES + f];
+				new_c[c].features[f] = new_centroids[c * NUM_FEATURES + f];
+			}
+		}
+		converged = check_convergence(old_c, new_c, cfg.threshold);
+
+		memcpy(centroids, new_centroids, k * NUM_FEATURES * sizeof(double));
+
+		if ((iter + 1) % 10 == 0) {
+			printf("  iter %d done\n", iter + 1);
+		}
+
+		if (converged) {
+			++iter;
+			break;
+		}
+	}
+
+	auto wall_end = std::chrono::steady_clock::now();
+	double elapsed =
+		std::chrono::duration<double>(wall_end - wall_start).count();
+
+	printf("%s after %d iterations.\n",
+		   converged ? "Converged" : "Reached max_iter", iter);
+	printf("Elapsed time: %g s\n", elapsed);
+
+	write_output_csv(cfg.output, std::vector<int>(labels, labels + n),
+					 points_vec);
+
+	free(points);
+	free(centroids);
+	free(labels);
+	free(new_labels);
+	free(new_centroids);
+	free(counts);
+
+	return 0;
 }
-

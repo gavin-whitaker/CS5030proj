@@ -15,4 +15,3 @@ int run_kmeans_cuda(const Config &cfg);
 
 // Kernel stub for the assignment step.
 __global__ void kmeans_assignment_kernel_stub();
-
