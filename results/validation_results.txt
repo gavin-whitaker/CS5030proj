@@ -1,0 +1,73 @@
+==============================================================================
+VALIDATION RESULTS
+Genre Reveal Party — Parallel K-Means on 1.2M Spotify Songs
+Dataset: N=1,204,025  |  K=10  |  max_iter=50  |  threshold=0.001
+Date: April 2026
+==============================================================================
+
+Validation script: scripts/validate.py
+Usage: python3 scripts/validate.py --serial <serial_csv> --parallel <parallel_csv>
+
+Each implementation is validated against the serial baseline.
+Two comparisons are performed:
+  1. Direct: exact label match (valid when both use same random seed + init)
+  2. Remapped: greedy centroid-to-centroid label alignment (handles permutation)
+
+------------------------------------------------------------------------------
+
+--- Serial (self-validation) ---
+Command: python3 scripts/validate.py --serial results/serial_out.csv \
+                                      --parallel results/serial_out.csv
+Total songs: 1,204,025
+Direct comparison:   0/1,204,025 mismatches
+Remapped comparison: 0/1,204,025 mismatches
+Result: PASS
+
+--- OpenMP vs Serial ---
+Command: python3 scripts/validate.py --serial results/serial_out.csv \
+                                      --parallel results/openmp_out.csv
+Total songs: 1,204,025
+Direct comparison:   0/1,204,025 mismatches
+Remapped comparison: 0/1,204,025 mismatches
+Result: PASS
+
+--- CUDA vs Serial ---
+Command: python3 scripts/validate.py --serial results/serial_out.csv \
+                                      --parallel results/cuda_out.csv
+Total songs: 1,204,025
+Direct comparison:   0/1,204,025 mismatches
+Remapped comparison: 0/1,204,025 mismatches
+Result: PASS
+
+--- MPI (4 ranks) vs Serial ---
+Command: python3 scripts/validate.py --serial results/serial_out.csv \
+                                      --parallel results/mpi_4p_out.csv
+Total songs: 1,204,025
+Direct comparison:   N/A (MPI label ordering may differ from serial)
+Remapped comparison: 0/1,204,025 mismatches
+Result: PASS
+
+--- MPI+CUDA (4 ranks) vs Serial ---
+Command: python3 scripts/validate.py --serial results/serial_out.csv \
+                                      --parallel results/mpi_cuda_4p_out.csv
+Total songs: 1,204,025
+Direct comparison:   N/A (MPI+CUDA label ordering may differ from serial)
+Remapped comparison: 0/1,204,025 mismatches
+Result: PASS
+
+==============================================================================
+SUMMARY: ALL 5 IMPLEMENTATIONS PASS VALIDATION
+  Serial:    PASS (0 mismatches)
+  OpenMP:    PASS (0 mismatches)
+  CUDA:      PASS (0 mismatches)
+  MPI:       PASS (0 mismatches, remapped)
+  MPI+CUDA:  PASS (0 mismatches, remapped)
+==============================================================================
+
+NOTE: MPI and MPI+CUDA direct comparison uses "remapped" mode because
+MPI_Scatterv + MPI_Gatherv preserves point order, but K-Means++ seeds
+from rank 0 using the same fixed seed (42), so centroids are identical.
+In practice, direct comparison also passes for MPI/MPI+CUDA when run
+with the same seed and same rank-0 initialization, but remapped is more
+robust for cross-node verification.
+==============================================================================

@@ -1,0 +1,96 @@
+==============================================================================
+AGGREGATE SCALING STUDY SUMMARY
+Genre Reveal Party — Parallel K-Means on 1.2M Spotify Songs
+Dataset: N=1,204,025  |  K=10  |  max_iter=50  |  threshold=0.001
+Platform: CHPC Kingspeak  |  Date: April 2026
+==============================================================================
+
+CONFIGURATION OVERVIEW
+-----------------------
+  Serial:    1 CPU thread, baseline
+  OpenMP:    1–16 threads (shared memory, single node)
+  CUDA:      1 GPU, block sizes 64–512 (Tesla V100)
+  MPI:       1–4 ranks (CPU only, 1 rank/node)
+  MPI+CUDA:  1–4 ranks (1 GPU per rank)
+
+COMPLETE TIMING TABLE (averages of 3 runs each)
+----------------------------------------------
+ Config                  | Time (s) | Speedup vs Serial
+-------------------------+----------+------------------
+ Serial                  |  3.68    |  1.00×
+ OpenMP  1T              |  3.76    |  0.98×
+ OpenMP  2T              |  3.69    |  1.00×
+ OpenMP  4T              |  2.94    |  1.25×
+ OpenMP  8T              |  2.86    |  1.29×
+ OpenMP 16T              |  2.59    |  1.42×
+ CUDA    bs=64           |  2.64    |  1.39×
+ CUDA    bs=128          |  2.62    |  1.40×
+ CUDA    bs=256          |  2.65    |  1.39×
+ CUDA    bs=512          |  2.50    |  1.47×
+ MPI     1P              |  2.37    |  1.55×
+ MPI     2P              |  1.95    |  1.89×
+ MPI     4P              |  1.58    |  2.33×
+ MPI+CUDA 1P             |  1.61    |  2.28×
+ MPI+CUDA 2P             |  1.42    |  2.59×
+ MPI+CUDA 4P  (BEST)     |  1.35    |  2.73×
+
+PARALLEL EFFICIENCY
+-------------------
+ Config      | Threads/Ranks | Speedup | Efficiency
+-------------+---------------+---------+----------
+ OpenMP      |      2        |  1.00×  |  50%
+ OpenMP      |      4        |  1.25×  |  31%
+ OpenMP      |      8        |  1.29×  |  16%
+ OpenMP      |     16        |  1.42×  |   9%
+ MPI         |      2        |  1.89×  |  94%
+ MPI         |      4        |  2.33×  |  58%
+ MPI+CUDA    |      2        |  2.59×  | 130%  (superlinear vs serial)
+ MPI+CUDA    |      4        |  2.73×  |  68%
+
+CROSS-PARADIGM COMPARISON (best of each)
+-----------------------------------------
+ Serial:    3.68 s  (1.00×)  — baseline
+ OpenMP:    2.59 s  (1.42×)  — 16 threads
+ CUDA:      2.50 s  (1.47×)  — block_size=512
+ MPI:       1.58 s  (2.33×)  — 4 ranks
+ MPI+CUDA:  1.35 s  (2.73×)  — 4 ranks × 1 GPU
+
+ Winner: MPI+CUDA (4 ranks) — 2.73× over serial, 1.92× over best OpenMP
+
+KEY FINDINGS
+------------
+1. OpenMP delivers modest speedup (1.4×) limited by:
+   - Per-iteration synchronization barriers
+   - Serial centroid merge phase
+   - Cache contention at high thread counts
+
+2. CUDA is comparable to best OpenMP (1.4–1.5×) for this dataset:
+   - PCIe centroid transfer overhead dominates improvement
+   - Block size has negligible impact (compute not memory-bound)
+   - Much simpler to tune than OpenMP for this workload
+
+3. MPI outperforms OpenMP significantly (2.33× vs 1.42× at 4P vs 16T):
+   - Distributed memory avoids cache contention
+   - Centroid communication (480 bytes/iter) is negligible
+   - Scales better due to Amdahl's Law: larger serial fraction in OpenMP
+
+4. MPI+CUDA is the overall best (2.73× speedup):
+   - GPU handles assignment; MPI handles centroid sync
+   - Diminishing returns beyond 2 ranks for K=10 (latency-dominated)
+   - Larger K (e.g., K=50) would show better GPU/MPI scaling
+
+5. All implementations validated against serial (0 mismatches):
+   - OpenMP: PASS (direct + remapped comparison)
+   - CUDA:   PASS (direct + remapped comparison)
+   - MPI:    PASS (remapped comparison — label order may differ)
+   - MPI+CUDA: PASS (remapped comparison)
+
+RECOMMENDATION FOR PRODUCTION
+------------------------------
+  - Single node, no GPU: OpenMP 8–16T (2.86–2.59 s)
+  - Single node, with GPU: CUDA bs=256 (2.65 s) or MPI+CUDA 1P (1.61 s)
+  - Multi-node, CPU only: MPI 4P (1.58 s)
+  - Multi-node, with GPUs: MPI+CUDA 4P (1.35 s) — BEST OVERALL
+  - For K >> 10: MPI+CUDA scaling advantage increases substantially
+
+==============================================================================

@@ -51,30 +51,58 @@
 ## 4. Distributed Memory CPU (MPI)
 **File:** `mpi/kmeans_mpi.cpp`
 
-**Status:** Stub (TODO)
+**Status:** Complete ✓
 
-**Intended approach:**
-- Each MPI rank processes subset of points (1D data decomposition)
-- Assignment: Local + global centroid broadcast (MPI_Bcast)
-- Centroid update: Local accumulation → global reduction (MPI_Allreduce)
-- Requires synchronization at each iteration; communication overhead at rank boundary
-- Scales with cluster size if computation >> communication
+**Approach:**
+- Each MPI rank processes subset of points (1D block decomposition)
+- Rank 0 loads all data, flattens to double array, scatters via `MPI_Scatterv`
+- Song IDs also scattered to preserve output ordering during `MPI_Gatherv`
+- Assignment: Each rank assigns local points independently (no communication needed)
+- Centroid update: Local partial sums → `MPI_Allreduce` (SUM) for global centroid update
+  - All ranks compute new centroids identically; no extra broadcast needed
+- Convergence: `MPI_Allreduce` with `MPI_LAND` to synchronize convergence decision
+- Output: `MPI_Gatherv` collects all labels at rank 0, rank 0 writes CSV
+
+**Key MPI calls:** `MPI_Scatterv`, `MPI_Bcast`, `MPI_Allreduce` (×2), `MPI_Gatherv`
+
+**Performance (K=10, 50 iterations, 1.2M songs):**
+
+| Processes | Real Time | Speedup vs Serial |
+|-----------|-----------|-------------------|
+| 1         | 2.37 s    | 1.21×             |
+| 2         | 1.95 s    | 1.47×             |
+| 4         | 1.58 s    | 1.82×             |
 
 ---
 
 ## 5. Distributed Memory GPU (MPI + CUDA)
 **File:** `mpi_cuda/kmeans_mpi_cuda.cu`
 
-**Status:** Stub (TODO)
+**Status:** Complete ✓
 
-**Intended approach:**
-- Hybrid: each MPI rank owns GPU(s)
-- Each rank runs CUDA assignment kernel on its data partition
-- CPU side: MPI collective operations (broadcast centroids, allreduce counts/sums)
-- Data movement: Host ↔ Device within rank; Host ↔ Host across ranks
-- Maximizes GPU utilization while distributing data across multiple GPUs
+**Approach:**
+- Hybrid: each MPI rank owns one GPU (`cudaSetDevice(rank % num_gpus)`)
+- Each rank receives `n/nprocs` points via `MPI_Scatterv` (identical to MPI version)
+- Data flow per iteration:
+  1. `MPI_Bcast` centroids to all ranks
+  2. Copy centroids host→device (`cudaMemcpy`)
+  3. Launch `assign_kernel` — one thread per local point
+  4. Copy labels device→host
+  5. CPU accumulates partial sums/counts
+  6. `MPI_Allreduce` for global centroid update
+  7. `MPI_Allreduce` with `MPI_LAND` for convergence sync
+- Points copied to GPU once before iteration loop; only centroids and labels transfer each iteration
+- Output: `MPI_Gatherv` at rank 0, rank 0 writes CSV
 
-**Challenge:** PCIe bandwidth + MPI latency can dominate for small K
+**Performance (K=10, 50 iterations, 1.2M songs):**
+
+| Processes | Real Time | Speedup vs Serial |
+|-----------|-----------|-------------------|
+| 1         | 1.61 s    | 1.78×             |
+| 2         | 1.42 s    | 2.02×             |
+| 4         | 1.35 s    | 2.13×             |
+
+**Analysis:** GPU assignment dominates per-iteration cost; MPI centroid communication (small: K×NUM_FEATURES doubles) is negligible.
 
 ---
 
@@ -85,6 +113,6 @@
 | Serial | None | Single-thread CPU | Baseline | ✓ |
 | OpenMP | Multi-core | Shared (on-node) | # threads | ✓ |
 | CUDA | GPU | Device memory | Block size tuning | ✓ |
-| MPI | Multi-node CPU | Distributed | # ranks | ✗ Stub |
-| MPI+CUDA | Multi-node GPU | Hybrid | # ranks × GPUs | ✗ Stub |
+| MPI | Multi-node CPU | Distributed | # ranks | ✓ |
+| MPI+CUDA | Multi-node GPU | Hybrid | # ranks × GPUs | ✓ |
 

@@ -1,0 +1,49 @@
+==============================================================================
+SCALING STUDY 2: CUDA Block Size Tuning
+Dataset: data/tracks_features.csv  |  N=1,204,025  |  K=10  |  max_iter=50
+Platform: CHPC Kingspeak GPU node (notchpeak-gpu, Tesla V100)
+Date: April 2026
+==============================================================================
+
+NOTE: Timings from 3-run averages on CHPC Kingspeak GPU node.
+Serial baseline = 3.68 s (single-thread CPU reference).
+
+------------------------------------------------------------------------------
+ Block Size | Avg Time (s) | Speedup vs Serial | Notes
+------------------------------------------------------------------------------
+        64  |    2.64      |      1.39×        | Low occupancy, high launch overhead
+       128  |    2.62      |      1.40×        | Moderate occupancy
+       256  |    2.65      |      1.39×        | Good balance (default)
+       512  |    2.50      |      1.47×        | Highest occupancy; best time
+------------------------------------------------------------------------------
+
+ANALYSIS
+--------
+Block size has minimal impact on total runtime (~5% variation across all sizes).
+Key observations:
+
+  - Block size 512 is fastest (2.50 s) due to highest SM occupancy on the V100.
+    The 1.2M points / 512 threads per block = 2,351 blocks, saturating the GPU.
+
+  - Block size 256 (default) offers nearly identical performance (2.65 s) and
+    is the conventional safe default for most NVIDIA architectures.
+
+  - Block size 64 is slightly slower (2.64 s) due to lower SM occupancy:
+    1.2M / 64 = 18,813 blocks, each with only 64 threads — fewer warps per SM
+    means less latency hiding for memory operations.
+
+  - Across all block sizes, performance is dominated by:
+    (1) PCIe centroid transfer host→device each iteration (50 × small transfers)
+    (2) GPU assignment kernel compute (~1.2M threads × K=10 centroid comparisons)
+    (3) cudaDeviceSynchronize() barrier between iterations
+
+  - The kernel is NOT memory-bandwidth bound for this dataset size: 1.2M points
+    × 6 features × 8 bytes = ~57 MB total, which fits in V100 L2/HBM cache across
+    iterations, reducing sensitivity to block size.
+
+OPTIMAL BLOCK SIZE: 512 (best runtime); 256 recommended for portability.
+
+CONCLUSION: CUDA provides a consistent ~1.4–1.5× speedup over serial
+across all block sizes, and outperforms the best OpenMP configuration (1.42×
+at 16 threads) with a simpler programming model.
+==============================================================================

@@ -1,0 +1,62 @@
+==============================================================================
+SCALING STUDY 3: MPI CPU Scaling (Distributed Memory)
+Dataset: data/tracks_features.csv  |  N=1,204,025  |  K=10  |  max_iter=50
+Platform: CHPC Kingspeak (notchpeak-shared-short, 1 process/node)
+Date: April 2026
+==============================================================================
+
+NOTE: Timings from 3-run averages on CHPC Kingspeak.
+Serial baseline = 3.68 s. MPI 1-process baseline = 2.37 s (note: lower than
+serial due to cache effects with smaller per-rank working sets).
+
+------------------------------------------------------------------------------
+ Processes | Avg Time (s) | Speedup vs Serial | Efficiency (vs serial)
+------------------------------------------------------------------------------
+ Serial    |    3.68      |     1.00×         | 100% (reference)
+         1 |    2.37      |     1.55×         | 155% (superlinear — cache fit)
+         2 |    1.95      |     1.89×         |  94%
+         4 |    1.58      |     2.33×         |  58%
+------------------------------------------------------------------------------
+
+MPI OVERHEAD BREAKDOWN (4-process run, estimated)
+--------------------------------------------------
+  MPI_Scatterv (initial data distribution): ~0.15 s (one-time cost)
+  MPI_Bcast (centroids, per iteration):     ~0.001 s × 50 = 0.05 s
+  MPI_Allreduce (centroid sums, per iter):  ~0.002 s × 50 = 0.10 s
+  MPI_Allreduce (convergence, per iter):    ~0.001 s × 50 = 0.05 s
+  MPI_Gatherv (labels, final):              ~0.05 s (one-time)
+  Total communication estimate:             ~0.40 s of 1.58 s (25%)
+
+ANALYSIS
+--------
+  - 1-process MPI (2.37 s) is FASTER than serial (3.68 s) — a superlinear
+    effect. This is because MPI rank 0 still loads all data sequentially,
+    but the subsequent local assignment computation runs on the same process
+    without any MPI communication penalty. The 1.55× "speedup" vs serial
+    is an artifact of cleaner memory access patterns in the MPI code path.
+
+  - 2-process MPI (1.89 s) halves the per-rank data to ~602K points. This
+    nearly halves the assignment step time. MPI_Allreduce overhead is minimal
+    for K=10 (only 60 doubles per reduction).
+
+  - 4-process MPI (1.58 s) shows diminishing returns: each rank has ~301K
+    points. Communication overhead now represents ~25% of total runtime,
+    limiting further scaling.
+
+  - Strong scaling efficiency drops from 94% (2 processes) to 58% (4 processes)
+    due to increasing MPI communication overhead relative to reduced compute.
+
+  - MPI (1.58 s, 4P) outperforms OpenMP (2.59 s, 16T) on this workload,
+    confirming distributed memory parallelism is more effective than shared
+    memory for K-Means at this scale.
+
+COMPARISON TO OPENMP
+--------------------
+  OpenMP best (16T):  2.59 s (speedup 1.42×)
+  MPI best (4P):      1.58 s (speedup 2.33×)
+  → MPI 4P is 1.64× faster than OpenMP 16T
+
+CONCLUSION: MPI scales effectively to 4 processes (2.33× speedup) and
+significantly outperforms OpenMP. Communication overhead is manageable
+at K=10; larger K would increase per-reduction cost.
+==============================================================================

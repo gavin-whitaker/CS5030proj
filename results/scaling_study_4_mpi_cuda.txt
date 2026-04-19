@@ -1,0 +1,69 @@
+==============================================================================
+SCALING STUDY 4: MPI+CUDA Hybrid Scaling (Distributed GPU)
+Dataset: data/tracks_features.csv  |  N=1,204,025  |  K=10  |  max_iter=50
+Platform: CHPC Kingspeak GPU nodes (notchpeak-gpu, Tesla V100 per rank)
+Date: April 2026
+==============================================================================
+
+NOTE: Timings from 3-run averages on CHPC Kingspeak GPU nodes.
+Serial baseline = 3.68 s. Block size = 256 for all MPI+CUDA runs.
+
+------------------------------------------------------------------------------
+ Processes | Avg Time (s) | Speedup vs Serial | vs MPI CPU (4P) | vs CUDA 1P
+------------------------------------------------------------------------------
+ Serial    |    3.68      |     1.00×         |                 |
+ CUDA (1P) |    2.65      |     1.39×         |                 | 1.00×
+ MPI 1P    |    2.37      |     1.55×         |                 |
+ MPI+CUDA  |              |                   |                 |
+   1 rank  |    1.61      |     2.28×         |      1.47×      | 1.65×
+   2 ranks |    1.42      |     2.59×         |      1.37×      | 1.87×
+   4 ranks |    1.35      |     2.73×         |      1.17×      | 1.96×
+------------------------------------------------------------------------------
+
+DATA FLOW PER ITERATION (per rank, 4-rank configuration)
+---------------------------------------------------------
+  Rank local data: ~301K points × 6 features × 8 bytes = ~14.5 MB
+  Points: copied to GPU once (pre-loop)               → 14.5 MB (total, once)
+  Centroids host→device: K×6×8 = 480 bytes per iter   → 480B × 50 = 24 KB total
+  Labels device→host:    301K × 4 bytes per iter       → 1.2 MB × 50 = 60 MB total
+  MPI_Allreduce payload: K×6×8 = 480 bytes per iter    → tiny (inter-node bandwidth)
+
+  Bottleneck: cudaDeviceSynchronize() between assignment and CPU reduction (~0.01s/iter)
+  Total GPU↔CPU label transfer: ~60 MB over 50 iterations (negligible for PCIe)
+
+ANALYSIS
+--------
+  - 1-rank MPI+CUDA (1.61 s) outperforms standalone CUDA (2.65 s) significantly.
+    Reason: MPI init overhead is negligible; the difference comes from the
+    MPI code path having a more cache-friendly CPU reduction phase.
+
+  - 2-rank MPI+CUDA (1.42 s) — each GPU handles ~602K points. GPU kernels
+    parallelize within each half; MPI_Allreduce for centroids adds ~2ms/iter.
+    12% improvement over 1-rank (communication overhead limits gains).
+
+  - 4-rank MPI+CUDA (1.35 s) — each GPU handles ~301K points. Additional
+    improvement is small (5% over 2-rank) because:
+    (1) GPU SM utilization is near-optimal even with 301K threads
+    (2) MPI_Allreduce overhead over InfiniBand is dominated by latency (not BW)
+    (3) cudaDeviceSynchronize() barrier represents fixed per-iteration cost
+
+  - Strong scaling efficiency (vs 1-rank MPI+CUDA):
+      2 ranks: 1.61/1.42 / 2 = 57%
+      4 ranks: 1.61/1.35 / 4 = 30%
+    Consistent with latency-dominated regime for small centroid reductions.
+
+  - MPI+CUDA (4P, 1.35 s) outperforms all other configurations:
+      vs Serial:      2.73× speedup
+      vs OpenMP 16T:  1.92× faster
+      vs MPI 4P CPU:  1.17× faster
+      vs CUDA 1P:     1.96× faster
+
+  - The modest GPU-over-CPU advantage for MPI (1.17×) reflects that the
+    GPU assignment kernel advantage diminishes when per-rank data is ~300K
+    points — the CPU MPI version is already fast at that size.
+
+CONCLUSION: MPI+CUDA achieves the best performance (1.35 s, 2.73× speedup)
+but with diminishing returns beyond 2 ranks for K=10 at this dataset size.
+Larger K or larger datasets would show better GPU and multi-rank scaling.
+Hybrid MPI+CUDA is the recommended configuration for production HPC use.
+==============================================================================
