@@ -73,7 +73,7 @@ def extract_point_data(rows, feat_indices):
 def create_plot(xs, ys, zs, colors, feature_names, k):
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(xs, ys, zs, c=colors, cmap='tab20', s=0.5, alpha=0.4)
+    sc = ax.scatter(xs, ys, zs, c=colors, cmap='tab20', s=30, alpha=0.7)
     ax.set_xlabel(feature_names[0])
     ax.set_ylabel(feature_names[1])
     ax.set_zlabel(feature_names[2])
