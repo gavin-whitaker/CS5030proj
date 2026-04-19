@@ -36,6 +36,9 @@ else
   CUDA_CXXFLAGS := -std=c++17 $(OPT) -g $(CPPFLAGS)
 endif
 
+MPI_INCS := -I/opt/mpich/include
+MPI_LIBS := -L/opt/mpich/lib -lmpicxx -lmpi -Xlinker -rpath -Xlinker /opt/mpich/lib
+
 CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(CUDA_SOURCES))) \
              $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(filter %.cpp,$(CUDA_SOURCES)))
 MPI_CUDA_OBJS := $(patsubst %.cu,$(BUILD_DIR)/%.o,$(filter %.cu,$(MPI_CUDA_SOURCES))) \
@@ -80,7 +83,7 @@ $(RESULTS_DIR)/cuda: $(CUDA_OBJS) | $(RESULTS_DIR)
 	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/mpi_cuda: $(MPI_CUDA_OBJS) | $(RESULTS_DIR)
-	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^
+	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^ $(MPI_LIBS)
 
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
@@ -97,6 +100,10 @@ $(BUILD_DIR)/openmp/%.o: openmp/%.cpp
 $(BUILD_DIR)/%.o: %.cu
 	@mkdir -p $(dir $@)
 	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/mpi_cuda/%.o: mpi_cuda/%.cu
+	@mkdir -p $(dir $@)
+	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) $(MPI_INCS) -c $< -o $@
 
 # ===== Testing =====
 TEST_DIR := tests

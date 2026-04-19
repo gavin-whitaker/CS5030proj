@@ -13,7 +13,6 @@ int main(int argc, char **argv) {
     print_usage(argv[0], "mpi_cuda --block_size <int>");
     return 1;
   }
-  std::cout << "TODO: implement MPI+CUDA K-Means.\n";
   return run_kmeans_mpi_cuda(cfg);
 }
 
