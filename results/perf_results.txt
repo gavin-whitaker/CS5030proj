@@ -1,0 +1,38 @@
+=== K-Means Scaling Study (Full Dataset: 1.2M songs) ===
+Date: Sun Apr 19 06:29:32 PM MDT 2026
+Dataset: data/tracks_features.csv (1,204,025 points, K=10, max_iter=50)
+
+=== EXPERIMENT 1: Serial vs OpenMP ===
+
+Serial: 2.37748 s
+OpenMP (1 threads): 2.39662 s (speedup=0.99, eff=99%)
+OpenMP (2 threads): 1.90445 s (speedup=1.25, eff=62%)
+OpenMP (4 threads): 1.66707 s (speedup=1.43, eff=36%)
+OpenMP (8 threads): 1.68989 s (speedup=1.41, eff=18%)
+
+=== EXPERIMENT 2: CUDA Block Size ===
+
+CUDA (block_size=64): 1.75782 s (speedup=1.35)
+CUDA (block_size=128): 1.67632 s (speedup=1.42)
+CUDA (block_size=256): 1.69309 s (speedup=1.40)
+CUDA (block_size=512): 1.69840 s (speedup=1.40)
+
+=== EXPERIMENT 3: MPI Process Scaling ===
+
+MPI (1 processes): 2.36512 s (speedup=1.01, eff=101%)
+MPI (2 processes): 1.93431 s (speedup=1.23, eff=61%)
+MPI (4 processes): 1.73622 s (speedup=1.37, eff=34%)
+
+=== EXPERIMENT 4: MPI+CUDA Process Scaling ===
+
+MPI+CUDA (1 processes): 1.57014 s (speedup=1.51, eff=151%)
+MPI+CUDA (2 processes): 1.57154 s (speedup=1.51, eff=76%)
+MPI+CUDA (4 processes): 1.60450 s (speedup=1.48, eff=37%)
+
+=== Validation ===
+PASS
+PASS
+PASS
+PASS
+
+Results saved to perf_results.txt

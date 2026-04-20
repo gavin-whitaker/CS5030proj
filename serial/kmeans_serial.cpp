@@ -25,9 +25,13 @@ static std::vector<int> assign_clusters(const std::vector<Point> &points,
     double best_dist = std::numeric_limits<double>::max();
     int best_c = 0;
     for (int c = 0; c < k; ++c) {
-      double d = euclidean_distance(points[i].features, centroids[c].features);
-      if (d < best_dist) {
-        best_dist = d;
+      double d_sq = 0.0;
+      for (int f = 0; f < NUM_FEATURES; ++f) {
+        double diff = points[i].features[f] - centroids[c].features[f];
+        d_sq += diff * diff;
+      }
+      if (d_sq < best_dist) {
+        best_dist = d_sq;
         best_c = c;
       }
     }
