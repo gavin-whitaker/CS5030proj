@@ -83,7 +83,7 @@ $(RESULTS_DIR)/cuda: $(CUDA_OBJS) | $(RESULTS_DIR)
 	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^
 
 $(RESULTS_DIR)/mpi_cuda: $(MPI_CUDA_OBJS) | $(RESULTS_DIR)
-	$(CUDA_COMPILER) $(CUDA_CXXFLAGS) -o $@ $^ $(MPI_LIBS)
+	$(MPICXX) -std=c++17 $(OPT) -g -o $@ $^ -L/opt/cuda/lib64 -lcudart
 
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
